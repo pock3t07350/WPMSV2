@@ -38,7 +38,7 @@ if uploaded_file:
         "PPD102": {"dec_global": 0, "CH1": 0, "CH2": 0, "CH3": 0, "CH4": 0},
         "PPD201": {"dec_global": 30, "CH1": 60, "CH2": 120, "CH3": 180, "CH4": 240},
         "PPD202": {"dec_global": 45, "CH1": 90, "CH2": 180, "CH3": 270, "CH4": 0},
-        "PPD301": {"dec_global": 90, "CH1": 90, "CH2": 90, "CH3": 90, "CH4": 90},
+        "PPD301": {"dec_global": 70, "CH1": 270, "CH2": 90, "CH3": 0, "CH4": 180},
         "PPD302": {"dec_global": 70, "CH1": 270, "CH2": 90, "CH3": 0, "CH4": 180},
     }
 
@@ -143,4 +143,5 @@ if uploaded_file:
 
 else:
     st.info("Chargez un fichier CSV")
+
 
