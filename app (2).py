@@ -5,7 +5,7 @@ import streamlit as st
 import io
 
 # --- CONFIG PAGE ---
-st.set_page_config(page_title="Le WPMS de Nouzote V2", layout="wide")
+st.set_page_config(page_title="Le WPMS de Nouzote V3", layout="wide")
 
 # --- TITRE ---
 st.markdown("<h1 style='text-align:center; color:#800020;'>💨 Le WPMS de Nouzote V2</h1>", unsafe_allow_html=True)
@@ -179,4 +179,5 @@ if uploaded_file:
 
 else:
     st.info("Chargez un fichier CSV")
+
 
