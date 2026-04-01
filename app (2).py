@@ -106,7 +106,17 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     # titre en haut: pompe + date/heure
     ppd_name, dt_str = parse_filename_info(uploaded_file_name)
     fig.suptitle(f"Pompe: {ppd_name} | Heure: {dt_str}", fontsize=16, color="#800020")
-    axs[2].axis("off")  # désactiver la zone info en bas
+    # infos en bas
+    rpm = 60000 / n
+    txt = " | ".join([f"{k}:{v}°" for k,v in dec_ch.items()])
+    axs[2].axis("off")
+    axs[2].text(
+        0.5,
+        0.5,
+        f"PPD: {ppd_selected} | Durée {n} ms | {rpm:.1f} RPM | Global {dec_global}° | {txt}",
+        ha="center",
+        va="center"
+    )
     return fig
 
 # --- SINGLE CSV ---
