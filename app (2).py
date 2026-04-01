@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 import io
+import re
+from datetime import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 
 # --- CONFIG PAGE ---
@@ -25,7 +27,20 @@ presets = {
     "PPD302": {"dec_global": 165, "CH1": 270, "CH2": 90, "CH3": 0, "CH4": 180},
 }
 
-# --- FONCTION DE TRAITEMENT CSV ---
+# --- FONCTION: EXTRACTION POMPE + DATE/HEURE ---
+def parse_filename_info(filename):
+    ppd_match = re.search(r"(PPD\d{3})", filename)
+    ppd = ppd_match.group(1) if ppd_match else "PPD inconnue"
+    date_match = re.search(r"_(\d{6})-(\d{6})", filename)
+    if date_match:
+        date_str, time_str = date_match.groups()
+        dt = datetime.strptime(date_str+time_str, "%y%m%d%H%M%S")
+        dt_str = dt.strftime("%d/%m/%y %H:%M:%S")
+    else:
+        dt_str = "Date inconnue"
+    return ppd, dt_str
+
+# --- FONCTION: TRAITEMENT CSV ---
 def process_csv(uploaded_file):
     try:
         content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
@@ -45,7 +60,7 @@ def process_csv(uploaded_file):
         st.warning(f"Erreur fichier {uploaded_file.name} : {e}")
         return None, None
 
-# --- FONCTION POUR CREER LES FIGURES ---
+# --- FONCTION: CREATION FIGURE ---
 def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_file_name):
     seuil_ch5 = 20
     fronts = (df["CH5"] > seuil_ch5) & (df["CH5"].shift(1) <= seuil_ch5)
@@ -89,15 +104,19 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     axs[1].set_xlabel("Angle")
     axs[1].set_ylabel("Pression")
     axs[1].grid(True)
-    # infos
+    # infos: pompe + date/heure
+    ppd_name, dt_str = parse_filename_info(uploaded_file_name)
     rpm = 60000/n
     txt = " | ".join([f"{k}:{v}°" for k,v in dec_ch.items()])
     axs[2].axis("off")
-    axs[2].text(0.5,0.5,f"Fichier: {uploaded_file_name} | PPD: {ppd_selected} | {rpm:.1f} RPM | Global {dec_global}° | {txt}",
-                ha="center", va="center")
+    axs[2].text(
+        0.5, 0.5,
+        f"Fichier: {uploaded_file_name} | Pompe: {ppd_name} | Heure: {dt_str} | RPM: {rpm:.1f} | Global {dec_global}° | {txt}",
+        ha="center", va="center"
+    )
     return fig
 
-# --- SINGLE FILE MODE ---
+# --- SINGLE CSV ---
 if mode == "Single CSV":
     uploaded_file = st.file_uploader("📂 Charger un fichier CSV", type=["csv"])
     if uploaded_file:
@@ -116,7 +135,7 @@ if mode == "Single CSV":
     else:
         st.info("Chargez un fichier CSV")
 
-# --- BATCH MODE ---
+# --- BATCH CSV ---
 else:
     uploaded_files = st.file_uploader("📂 Charger plusieurs CSV", type=["csv"], accept_multiple_files=True)
     if uploaded_files:
@@ -135,7 +154,7 @@ else:
                 fig = create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, filename)
                 if fig:
                     figs.append(fig)
-        # sauvegarde PDF
+        # PDF batch
         if figs:
             pdf_bytes = io.BytesIO()
             with PdfPages(pdf_bytes) as pdf:
