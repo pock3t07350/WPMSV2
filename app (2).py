@@ -12,7 +12,7 @@ st.set_page_config(page_title="Le WPMS de Nouzote V3", layout="wide")
 st.markdown("<h1 style='text-align:center; color:#800020;'>💨 Le WPMS de Nouzote V3</h1>", unsafe_allow_html=True)
 
 # --- DOSSIER SOURCE ---
-BASE_DIR = r"I:\400-Echange_OT\03-Rapports\WPMS"
+BASE_DIR = r"\\netapp10\data$\400-Echange_OT\03-Rapports\WPMS"
 
 # --- SIDEBAR FICHIERS ---
 st.sidebar.header("📁 Fichiers WPMS")
