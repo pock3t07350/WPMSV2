@@ -71,7 +71,6 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     # conversion pression
     for ch in ["CH1","CH2","CH3","CH4"]:
         df[ch] = (df[ch] - 1.08) * 23.148148
-    # sélection cycle 0 par défaut
     start, end = indices_fronts[0], indices_fronts[1]
     cycle = df.iloc[start:end].reset_index(drop=True)
     n = len(cycle)
@@ -104,16 +103,10 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     axs[1].set_xlabel("Angle")
     axs[1].set_ylabel("Pression")
     axs[1].grid(True)
-    # infos: pompe + date/heure
+    # titre en haut: pompe + date/heure
     ppd_name, dt_str = parse_filename_info(uploaded_file_name)
-    rpm = 60000/n
-    txt = " | ".join([f"{k}:{v}°" for k,v in dec_ch.items()])
-    axs[2].axis("off")
-    axs[2].text(
-        0.5, 0.5,
-        f"Fichier: {uploaded_file_name} | Pompe: {ppd_name} | Heure: {dt_str} | RPM: {rpm:.1f} | Global {dec_global}° | {txt}",
-        ha="center", va="center"
-    )
+    fig.suptitle(f"Pompe: {ppd_name} | Heure: {dt_str}", fontsize=16, color="#800020")
+    axs[2].axis("off")  # désactiver la zone info en bas
     return fig
 
 # --- SINGLE CSV ---
