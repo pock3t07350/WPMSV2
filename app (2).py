@@ -77,7 +77,7 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     cycle["Angle"] = np.linspace(0,360,n,endpoint=False)
     dec_total = int((dec_global/360)*n) % n
     colors = {"CH1":"red","CH2":"blue","CH3":"green","CH4":"purple"}
-    labels = {"CH1":"CH D1","CH2":"CH D2","CH3":"CH D3","CH4":"CH D4"}
+    labels = {"CH1":"D1","CH2":"D2","CH3":"D3","CH4":"D4"}
     signals = {}
     for ch, dec in dec_ch.items():
         if show_signals[ch]:
@@ -85,38 +85,62 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
             signals[ch] = np.roll(cycle[ch], shift)
     # création figure
     fig, axs = plt.subplots(3,1, figsize=(12,8), gridspec_kw={'height_ratios':[1,1,0.3]})
-    for ch, sig in signals.items():
-        axs[0].plot(cycle["Angle"], sig, label=labels[ch], color=colors[ch])
-    axs[0].legend()
+
+    # --- Graphe haut: couples D1+D4 vs D2+D3 ---
+    couple_comp = signals.get("CH1", np.zeros(n)) + signals.get("CH4", np.zeros(n))
+    couple_decomp = signals.get("CH2", np.zeros(n)) + signals.get("CH3", np.zeros(n))
+    axs[0].plot(cycle["Angle"], couple_comp, label="D1+D4 (compression)", color="black", linewidth=2)
+    axs[0].plot(cycle["Angle"], couple_decomp, "--", label="D2+D3 (décompression)", color="gray", linewidth=2)
     axs[0].set_xlim(-10,390)
     axs[0].set_ylabel("Pression (bar)")
     axs[0].grid(True)
-    # compression/decompression
+    axs[0].legend()
+
+    # --- Graphe milieu: compression / décompression par cylindre ---
     mid = n//2
     angles_half = np.linspace(0,180,mid,endpoint=False)
     for ch, sig in signals.items():
         comp = sig[:mid]
         decomp = sig[-mid:][::-1]
-        axs[1].plot(angles_half, comp, color=colors[ch])
+        axs[1].plot(angles_half, comp, color=colors[ch], label=labels[ch])
         axs[1].plot(angles_half, decomp, "--", color=colors[ch])
     axs[1].set_xlim(-10,190)
     axs[1].set_xlabel("Angle")
-    axs[1].set_ylabel("Pression")
+    axs[1].set_ylabel("Pression (bar)")
     axs[1].grid(True)
-    # titre en haut: pompe + date/heure
+
+    # --- Calcul déphasage dans la moitié finale ---
+    comp_final = signals.get("CH1", np.zeros(n))[:mid] + signals.get("CH4", np.zeros(n))[:mid]
+    decomp_final = signals.get("CH2", np.zeros(n))[-mid:][::-1] + signals.get("CH3", np.zeros(n))[-mid:][::-1]
+    idx_comp = np.argmax(comp_final)
+    idx_decomp = np.argmax(decomp_final)
+    shift_points = (idx_decomp - idx_comp) % mid
+    angle_shift = (shift_points / mid) * 180  # moitié cycle = 180°
+
+    # --- stats pour la partie basse ---
+    stats = {}
+    for couple, sig in [("D1+D4", comp_final), ("D2+D3", decomp_final)]:
+        stats[couple] = {
+            "min": np.min(sig),
+            "max": np.max(sig),
+            "mean": np.mean(sig)
+        }
+
+    # --- titre en haut ---
     ppd_name, dt_str = parse_filename_info(uploaded_file_name)
     fig.suptitle(f"Pompe: {ppd_name} | Heure: {dt_str}", fontsize=16, color="#800020")
-    # infos en bas
+
+    # --- partie basse: texte info ---
     rpm = 60000 / n
-    txt = " | ".join([f"{k}:{v}°" for k,v in dec_ch.items()])
-    axs[2].axis("off")
-    axs[2].text(
-        0.5,
-        0.5,
-        f"PPD: {ppd_selected} | Durée {n} ms | {rpm:.1f} RPM | Global {dec_global}° | {txt}",
-        ha="center",
-        va="center"
+    info_txt = (
+        f"Durée {n} ms | RPM {rpm:.1f} | Global {dec_global}° | "
+        f"D1+D4: min {stats['D1+D4']['min']:.1f} / max {stats['D1+D4']['max']:.1f} / moy {stats['D1+D4']['mean']:.1f} | "
+        f"D2+D3: min {stats['D2+D3']['min']:.1f} / max {stats['D2+D3']['max']:.1f} / moy {stats['D2+D3']['mean']:.1f} | "
+        f"Déphasage: {angle_shift:.1f}°"
     )
+    axs[2].axis("off")
+    axs[2].text(0.5, 0.5, info_txt, ha="center", va="center")
+
     return fig
 
 # --- SINGLE CSV ---
