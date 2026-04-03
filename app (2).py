@@ -88,14 +88,14 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
             signals[ch] = np.roll(cycle[ch], shift)
 
     # --- FIGURE ---
-    fig, axs = plt.subplots(3,1, figsize=(12,8), gridspec_kw={'height_ratios':[1,1,0.6]})
+    fig, axs = plt.subplots(3,1, figsize=(12,8), gridspec_kw={'height_ratios':[1,1,0.8]})
 
     # Haut: courbes brutes
     for ch, sig in signals.items():
         axs[0].plot(cycle["Angle"], sig, label=labels[ch], color=colors[ch])
     axs[0].legend()
     axs[0].set_xlim(-10,390)
-    axs[0].set_ylabel("Pression (bar)")
+    axs[0].set_ylabel("Pression (bars)")
     axs[0].grid(True)
 
     # Milieu: compression / decompression
@@ -108,26 +108,27 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
         axs[1].plot(angles_half, decomp, "--", color=colors[ch])
     axs[1].set_xlim(-10,190)
     axs[1].set_xlabel("Angle")
-    axs[1].set_ylabel("Pression (bar)")
+    axs[1].set_ylabel("Pression (bars)")
     axs[1].grid(True)
 
-    # Bas: anciennes infos + stats par canal
+    # Bas: anciennes infos + stats par canal avec couleurs et lignes séparées
     ppd_name, dt_str = parse_filename_info(uploaded_file_name)
     rpm = 60000 / n
     txt_dec = " | ".join([f"{k}:{v}°" for k,v in dec_ch.items()])
 
-    stats_txt = ""
+    axs[2].axis("off")
+    # ligne principale infos
+    axs[2].text(0.5,0.8, f"PPD: {ppd_selected} | Durée {n} ms | {rpm:.1f} RPM | Global {dec_global}° | {txt_dec}",
+                ha="center", va="center", fontsize=10, family='monospace')
+    
+    # stats D1-D4, séparées verticalement et colorées
+    ypos = 0.6
     for ch in ["CH1","CH2","CH3","CH4"]:
         sig = signals.get(ch)
         if sig is not None:
-            stats_txt += (f"{labels[ch]} | Max:{sig.max():.1f} bar "
-                          f"Min:{sig.min():.1f} bar "
-                          f"Moy:{sig.mean():.1f} bar\n")
-
-    axs[2].axis("off")
-    axs[2].text(0.5,0.6, f"PPD: {ppd_selected} | Durée {n} ms | {rpm:.1f} RPM | Global {dec_global}° | {txt_dec}",
-                ha="center", va="center", fontsize=10, family='monospace')
-    axs[2].text(0.5,0.3, stats_txt, ha="center", va="center", fontsize=10, family='monospace')
+            stats_str = f"{labels[ch]} | Max:{sig.max():.1f} bars  Min:{sig.min():.1f} bars  Moy:{sig.mean():.1f} bars"
+            axs[2].text(0.5, ypos, stats_str, ha="center", va="center", fontsize=10, color=colors[ch], family='monospace')
+            ypos -= 0.2  # espacement pour ne pas chevaucher
 
     # Titre en haut
     fig.suptitle(f"Pompe: {ppd_name} | Heure: {dt_str}", fontsize=16, color="#800020")
