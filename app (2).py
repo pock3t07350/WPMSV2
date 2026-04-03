@@ -90,7 +90,7 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     # --- FIGURE ---
     fig, axs = plt.subplots(3,1, figsize=(12,8), gridspec_kw={'height_ratios':[1,1,0.6]})
 
-    # --- HAUT: courbes brutes ---
+    # Haut: courbes brutes
     for ch, sig in signals.items():
         axs[0].plot(cycle["Angle"], sig, label=labels[ch], color=colors[ch])
     axs[0].legend()
@@ -98,7 +98,7 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     axs[0].set_ylabel("Pression (bar)")
     axs[0].grid(True)
 
-    # --- MILIEU: compression / decompression ---
+    # Milieu: compression / decompression
     mid = n//2
     angles_half = np.linspace(0,180,mid,endpoint=False)
     for ch, sig in signals.items():
@@ -108,40 +108,28 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
         axs[1].plot(angles_half, decomp, "--", color=colors[ch])
     axs[1].set_xlim(-10,190)
     axs[1].set_xlabel("Angle")
-    axs[1].set_ylabel("Pression")
+    axs[1].set_ylabel("Pression (bar)")
     axs[1].grid(True)
 
-    # --- BAS: anciennes infos + stats par canal + déphasage couples ---
+    # Bas: anciennes infos + stats par canal
     ppd_name, dt_str = parse_filename_info(uploaded_file_name)
     rpm = 60000 / n
     txt_dec = " | ".join([f"{k}:{v}°" for k,v in dec_ch.items()])
 
-    # stats par canal
     stats_txt = ""
     for ch in ["CH1","CH2","CH3","CH4"]:
         sig = signals.get(ch)
         if sig is not None:
-            stats_txt += (f"{labels[ch]} | Max:{sig.max():.1f} "
-                          f"Min:{sig.min():.1f} "
-                          f"Moy:{sig.mean():.1f}\n")
-
-    # déphasage couples
-    dephasage_txt = ""
-    couples = [("CH1","CH4"),("CH2","CH3")]
-    for c1,c2 in couples:
-        sig1, sig2 = signals.get(c1), signals.get(c2)
-        if sig1 is not None and sig2 is not None:
-            idx_max1, idx_max2 = np.argmax(sig1), np.argmax(sig2)
-            deph = ((idx_max2-idx_max1)/n)*360
-            dephasage_txt += f"{labels[c1]}+{labels[c2]} Déphasage: {deph:.1f}°\n"
+            stats_txt += (f"{labels[ch]} | Max:{sig.max():.1f} bar "
+                          f"Min:{sig.min():.1f} bar "
+                          f"Moy:{sig.mean():.1f} bar\n")
 
     axs[2].axis("off")
-    axs[2].text(0.5,0.85, f"PPD: {ppd_selected} | Durée {n} ms | {rpm:.1f} RPM | Global {dec_global}° | {txt_dec}",
+    axs[2].text(0.5,0.6, f"PPD: {ppd_selected} | Durée {n} ms | {rpm:.1f} RPM | Global {dec_global}° | {txt_dec}",
                 ha="center", va="center", fontsize=10, family='monospace')
-    axs[2].text(0.5,0.5, stats_txt, ha="center", va="center", fontsize=10, family='monospace')
-    axs[2].text(0.5,0.2, dephasage_txt, ha="center", va="center", fontsize=10, family='monospace')
+    axs[2].text(0.5,0.3, stats_txt, ha="center", va="center", fontsize=10, family='monospace')
 
-    # --- TITRE EN HAUT ---
+    # Titre en haut
     fig.suptitle(f"Pompe: {ppd_name} | Heure: {dt_str}", fontsize=16, color="#800020")
 
     return fig
