@@ -88,7 +88,7 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
             signals[ch] = np.roll(cycle[ch], shift)
 
     # --- FIGURE ---
-    fig, axs = plt.subplots(3,1, figsize=(12,8), gridspec_kw={'height_ratios':[1,1,0.4]})
+    fig, axs = plt.subplots(3,1, figsize=(12,8), gridspec_kw={'height_ratios':[1,1,0.6]})
 
     # --- HAUT: courbes brutes ---
     for ch, sig in signals.items():
@@ -111,27 +111,37 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     axs[1].set_ylabel("Pression")
     axs[1].grid(True)
 
-    # --- BAS: stats ---
+    # --- BAS: anciennes infos + stats par canal + déphasage couples ---
+    ppd_name, dt_str = parse_filename_info(uploaded_file_name)
+    rpm = 60000 / n
+    txt_dec = " | ".join([f"{k}:{v}°" for k,v in dec_ch.items()])
+
+    # stats par canal
     stats_txt = ""
+    for ch in ["CH1","CH2","CH3","CH4"]:
+        sig = signals.get(ch)
+        if sig is not None:
+            stats_txt += (f"{labels[ch]} | Max:{sig.max():.1f} "
+                          f"Min:{sig.min():.1f} "
+                          f"Moy:{sig.mean():.1f}\n")
+
+    # déphasage couples
+    dephasage_txt = ""
     couples = [("CH1","CH4"),("CH2","CH3")]
     for c1,c2 in couples:
         sig1, sig2 = signals.get(c1), signals.get(c2)
         if sig1 is not None and sig2 is not None:
-            max1,max2 = sig1.max(), sig2.max()
-            min1,min2 = sig1.min(), sig2.min()
-            mean1,mean2 = sig1.mean(), sig2.mean()
-            # déphasage approx: angle du max
             idx_max1, idx_max2 = np.argmax(sig1), np.argmax(sig2)
             deph = ((idx_max2-idx_max1)/n)*360
-            stats_txt += (f"{labels[c1]}+{labels[c2]} | Max:{max1:.1f}/{max2:.1f} "
-                          f"Min:{min1:.1f}/{min2:.1f} "
-                          f"Moy:{mean1:.1f}/{mean2:.1f} "
-                          f"Déphasage:{deph:.1f}°\n")
+            dephasage_txt += f"{labels[c1]}+{labels[c2]} Déphasage: {deph:.1f}°\n"
+
     axs[2].axis("off")
+    axs[2].text(0.5,0.85, f"PPD: {ppd_selected} | Durée {n} ms | {rpm:.1f} RPM | Global {dec_global}° | {txt_dec}",
+                ha="center", va="center", fontsize=10, family='monospace')
     axs[2].text(0.5,0.5, stats_txt, ha="center", va="center", fontsize=10, family='monospace')
+    axs[2].text(0.5,0.2, dephasage_txt, ha="center", va="center", fontsize=10, family='monospace')
 
     # --- TITRE EN HAUT ---
-    ppd_name, dt_str = parse_filename_info(uploaded_file_name)
     fig.suptitle(f"Pompe: {ppd_name} | Heure: {dt_str}", fontsize=16, color="#800020")
 
     return fig
