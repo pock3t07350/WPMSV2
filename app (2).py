@@ -10,11 +10,11 @@ from matplotlib.backends.backend_pdf import PdfPages
 # --- CONFIG PAGE ---
 st.set_page_config(page_title="WPMS NZ V3", layout="wide")
 
-# --- HEADER ---
+# --- HEADER (LOGO + TITRE) ---
 col1, col2, col3 = st.columns([1.5, 3, 1])
 
 with col1:
-    st.image("logo.jpeg", width=360)  # LOGO x3
+    st.image("logo.jpeg", width=360)
 
 with col2:
     st.markdown(
@@ -48,10 +48,10 @@ presets = {
     "PPD302": {"dec_global": 165, "CH1": 270, "CH2": 90, "CH3": 0, "CH4": 180},
 }
 
-# --- PARSE PPD (ROBUSTE) ---
+# --- PPD DETECTION (COMME AVANT) ---
 def detect_ppd(filename):
-    match = re.search(r"PPD\d{3}", filename.upper())
-    return match.group(0) if match else None
+    match = re.search(r"(PPD\d{3})", filename.upper())
+    return match.group(1) if match else None
 
 # --- PARSE FILENAME ---
 def parse_filename_info(filename):
@@ -98,7 +98,7 @@ def process_csv(uploaded_file):
         st.warning(f"Erreur fichier {uploaded_file.name} : {e}")
         return None, None
 
-# --- FIGURE (PDF INCHANGÉ) ---
+# --- FIGURE (INCHANGÉ LOGIQUE) ---
 def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_file_name):
 
     df = df.copy()
@@ -192,14 +192,12 @@ if mode == "Single CSV":
 
             detected_ppd = detect_ppd(uploaded_file.name)
 
-            default_index = 0
-            if detected_ppd in ppd_options:
-                default_index = ppd_options.index(detected_ppd)
+            index_value = ppd_options.index(detected_ppd) if detected_ppd in ppd_options else 0
 
             ppd_selected = st.sidebar.selectbox(
                 "Sélection PPD",
                 ppd_options,
-                index=default_index,
+                index=index_value,
                 key="ppd_single"
             )
 
@@ -244,7 +242,15 @@ else:
 
             if df is not None:
 
-                fig = create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, filename)
+                # 👉 COMPORTEMENT ORIGINAL RESTAURÉ
+                detected_ppd = detect_ppd(uploaded_file.name)
+
+                if detected_ppd in ppd_options:
+                    ppd_used = detected_ppd
+                else:
+                    ppd_used = ppd_selected
+
+                fig = create_figure(df, ppd_used, dec_global, dec_ch, show_signals, filename)
 
                 if fig:
                     figs.append(fig)
