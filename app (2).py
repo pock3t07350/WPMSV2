@@ -6,16 +6,17 @@ import io
 import re
 from datetime import datetime
 from matplotlib.backends.backend_pdf import PdfPages
+
 import matplotlib.image as mpimg
 
 # --- CONFIG PAGE ---
 st.set_page_config(page_title="WPMS NZ V3", layout="wide")
 
 # --- HEADER ---
-col1, col2, col3 = st.columns([1, 3, 1])
+col1, col2, col3 = st.columns([1.5, 3, 1])
 
 with col1:
-    st.image("logo.jpeg", width=120)
+    st.image("logo.jpeg", width=360)  # 🔥 LOGO x3
 
 with col2:
     st.markdown(
@@ -94,7 +95,7 @@ def process_csv(uploaded_file):
         st.warning(f"Erreur fichier {uploaded_file.name} : {e}")
         return None, None
 
-# --- FIGURE ---
+# --- FIGURE (PDF INCHANGÉ) ---
 def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_file_name):
 
     df = df.copy()
@@ -107,7 +108,6 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
         st.warning(f"Aucun cycle détecté pour {uploaded_file_name}")
         return None
 
-    # pression conversion
     for ch in ["CH1","CH2","CH3","CH4"]:
         df[ch] = (df[ch] - 1.08) * 23.148148
 
@@ -128,14 +128,13 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
             shift = (int((dec / 360) * n) + dec_total) % n
             signals[ch] = np.roll(cycle[ch], shift)
 
-    # --- FIGURE ---
     fig, axs = plt.subplots(
         3, 1,
         figsize=(12, 8),
         gridspec_kw={'height_ratios':[1,1,0.8]}
     )
 
-    # TOP
+    # --- TOP ---
     for ch, sig in signals.items():
         axs[0].plot(cycle["Angle"], sig, label=labels[ch], color=colors[ch])
 
@@ -144,22 +143,20 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     axs[0].set_ylabel("Pression (bars)")
     axs[0].grid(True)
 
-    # MID
+    # --- MID ---
     mid = n // 2
     angles_half = np.linspace(0, 180, mid, endpoint=False)
 
     for ch, sig in signals.items():
-        comp = sig[:mid]
-        decomp = sig[-mid:][::-1]
-        axs[1].plot(angles_half, comp, color=colors[ch])
-        axs[1].plot(angles_half, decomp, "--", color=colors[ch])
+        axs[1].plot(angles_half, sig[:mid], color=colors[ch])
+        axs[1].plot(angles_half, sig[-mid:][::-1], "--", color=colors[ch])
 
     axs[1].set_xlim(-10, 190)
     axs[1].set_xlabel("Angle")
     axs[1].set_ylabel("Pression (bars)")
     axs[1].grid(True)
 
-    # BOTTOM INFO
+    # --- BOTTOM INFO ---
     ppd_name, dt_str = parse_filename_info(uploaded_file_name)
     rpm = 60000 / n
 
@@ -180,13 +177,6 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
             ypos -= 0.2
 
     fig.suptitle(f"Pompe: {ppd_name} | Heure: {dt_str}", fontsize=16, color="#800020", x=0.55)
-
-    # --- LOGO PDF ---
-    try:
-        logo = mpimg.imread("logo.jpeg")
-        fig.figimage(logo, xo=20, yo=fig.bbox.ymax - 120, zorder=10)
-    except:
-        pass
 
     return fig
 
