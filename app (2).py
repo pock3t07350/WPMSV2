@@ -7,8 +7,6 @@ import re
 from datetime import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 
-import matplotlib.image as mpimg
-
 # --- CONFIG PAGE ---
 st.set_page_config(page_title="WPMS NZ V3", layout="wide")
 
@@ -16,7 +14,7 @@ st.set_page_config(page_title="WPMS NZ V3", layout="wide")
 col1, col2, col3 = st.columns([1.5, 3, 1])
 
 with col1:
-    st.image("logo.jpeg", width=720)  # 🔥 LOGO x5
+    st.image("logo.jpeg", width=360)  # LOGO x3
 
 with col2:
     st.markdown(
@@ -49,6 +47,11 @@ presets = {
     "PPD301": {"dec_global": 70, "CH1": 270, "CH2": 90, "CH3": 0, "CH4": 180},
     "PPD302": {"dec_global": 165, "CH1": 270, "CH2": 90, "CH3": 0, "CH4": 180},
 }
+
+# --- PARSE PPD (ROBUSTE) ---
+def detect_ppd(filename):
+    match = re.search(r"PPD\d{3}", filename.upper())
+    return match.group(0) if match else None
 
 # --- PARSE FILENAME ---
 def parse_filename_info(filename):
@@ -128,13 +131,9 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
             shift = (int((dec / 360) * n) + dec_total) % n
             signals[ch] = np.roll(cycle[ch], shift)
 
-    fig, axs = plt.subplots(
-        3, 1,
-        figsize=(12, 8),
-        gridspec_kw={'height_ratios':[1,1,0.8]}
-    )
+    fig, axs = plt.subplots(3, 1, figsize=(12, 8), gridspec_kw={'height_ratios':[1,1,0.8]})
 
-    # --- TOP ---
+    # TOP
     for ch, sig in signals.items():
         axs[0].plot(cycle["Angle"], sig, label=labels[ch], color=colors[ch])
 
@@ -143,7 +142,7 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     axs[0].set_ylabel("Pression (bars)")
     axs[0].grid(True)
 
-    # --- MID ---
+    # MID
     mid = n // 2
     angles_half = np.linspace(0, 180, mid, endpoint=False)
 
@@ -156,7 +155,7 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     axs[1].set_ylabel("Pression (bars)")
     axs[1].grid(True)
 
-    # --- BOTTOM INFO ---
+    # BOTTOM
     ppd_name, dt_str = parse_filename_info(uploaded_file_name)
     rpm = 60000 / n
 
@@ -180,7 +179,7 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
 
     return fig
 
-# --- SINGLE ---
+# --- SINGLE CSV ---
 if mode == "Single CSV":
 
     uploaded_file = st.file_uploader("📂 Charger un fichier CSV", type=["csv"])
@@ -191,12 +190,17 @@ if mode == "Single CSV":
 
         if df is not None:
 
-            detected_ppd = next((ppd for ppd in ppd_options if uploaded_file.name.startswith(ppd)), None)
+            detected_ppd = detect_ppd(uploaded_file.name)
+
+            default_index = 0
+            if detected_ppd in ppd_options:
+                default_index = ppd_options.index(detected_ppd)
 
             ppd_selected = st.sidebar.selectbox(
                 "Sélection PPD",
                 ppd_options,
-                index=ppd_options.index(detected_ppd) if detected_ppd else 0
+                index=default_index,
+                key="ppd_single"
             )
 
             preset_vals = presets[ppd_selected]
@@ -212,7 +216,7 @@ if mode == "Single CSV":
             if fig:
                 st.pyplot(fig)
 
-# --- BATCH ---
+# --- BATCH CSV ---
 else:
 
     uploaded_files = st.file_uploader("📂 Charger plusieurs CSV", type=["csv"], accept_multiple_files=True)
@@ -223,7 +227,7 @@ else:
 
         st.sidebar.header("Paramètres batch")
 
-        ppd_selected = st.sidebar.selectbox("Sélection PPD", ppd_options)
+        ppd_selected = st.sidebar.selectbox("Sélection PPD", ppd_options, key="ppd_batch")
         preset_vals = presets[ppd_selected]
 
         dec_global = st.sidebar.slider("Décalage global", 0, 360, preset_vals["dec_global"])
