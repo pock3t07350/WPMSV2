@@ -10,7 +10,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 # --- CONFIG PAGE ---
 st.set_page_config(page_title="WPMS NZ V3", layout="wide")
 
-# --- HEADER (LOGO + TITRE) ---
+# --- HEADER ---
 col1, col2, col3 = st.columns([1.5, 3, 1])
 
 with col1:
@@ -36,7 +36,7 @@ st.markdown(
 # --- MODE ---
 mode = st.radio("Mode", ["Single CSV", "Batch CSV"])
 
-# --- PRESETS ---
+# --- PPD ---
 ppd_options = ["PPD101","PPD102","PPD201","PPD202","PPD301","PPD302"]
 
 presets = {
@@ -48,12 +48,13 @@ presets = {
     "PPD302": {"dec_global": 165, "CH1": 270, "CH2": 90, "CH3": 0, "CH4": 180},
 }
 
-# --- PPD DETECTION (COMME AVANT) ---
+# --- DETECTION PPD (ROBUSTE) ---
 def detect_ppd(filename):
-    match = re.search(r"(PPD\d{3})", filename.upper())
-    return match.group(1) if match else None
+    filename = filename.upper().replace(" ", "")
+    match = re.search(r"PPD\d{3}", filename)
+    return match.group(0) if match else None
 
-# --- PARSE FILENAME ---
+# --- PARSE DATE ---
 def parse_filename_info(filename):
     ppd_match = re.search(r"(PPD\d{3})", filename)
     ppd = ppd_match.group(1) if ppd_match else "PPD inconnue"
@@ -68,7 +69,7 @@ def parse_filename_info(filename):
 
     return ppd, dt_str
 
-# --- CSV PROCESS ---
+# --- CSV ---
 def process_csv(uploaded_file):
     try:
         content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
@@ -98,7 +99,7 @@ def process_csv(uploaded_file):
         st.warning(f"Erreur fichier {uploaded_file.name} : {e}")
         return None, None
 
-# --- FIGURE (INCHANGÉ LOGIQUE) ---
+# --- FIGURE ---
 def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_file_name):
 
     df = df.copy()
@@ -179,7 +180,7 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
 
     return fig
 
-# --- SINGLE CSV ---
+# --- SINGLE ---
 if mode == "Single CSV":
 
     uploaded_file = st.file_uploader("📂 Charger un fichier CSV", type=["csv"])
@@ -191,7 +192,6 @@ if mode == "Single CSV":
         if df is not None:
 
             detected_ppd = detect_ppd(uploaded_file.name)
-
             index_value = ppd_options.index(detected_ppd) if detected_ppd in ppd_options else 0
 
             ppd_selected = st.sidebar.selectbox(
@@ -214,7 +214,7 @@ if mode == "Single CSV":
             if fig:
                 st.pyplot(fig)
 
-# --- BATCH CSV ---
+# --- BATCH (FIX FINAL) ---
 else:
 
     uploaded_files = st.file_uploader("📂 Charger plusieurs CSV", type=["csv"], accept_multiple_files=True)
@@ -242,13 +242,10 @@ else:
 
             if df is not None:
 
-                # 👉 COMPORTEMENT ORIGINAL RESTAURÉ
+                # 🔥 ICI = VRAIE DETECTION UTILISÉE
                 detected_ppd = detect_ppd(uploaded_file.name)
 
-                if detected_ppd in ppd_options:
-                    ppd_used = detected_ppd
-                else:
-                    ppd_used = ppd_selected
+                ppd_used = detected_ppd if detected_ppd in ppd_options else ppd_selected
 
                 fig = create_figure(df, ppd_used, dec_global, dec_ch, show_signals, filename)
 
