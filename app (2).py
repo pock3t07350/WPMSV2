@@ -14,7 +14,7 @@ st.set_page_config(page_title="Le WPMS de Nouzote V3", layout="wide")
 col1, col2 = st.columns([1, 6])
 
 with col1:
-    st.image("logo.jpeg", width=500)
+    st.image("logo.jpeg", width=1000)
 
 with col2:
     st.markdown(
