@@ -10,8 +10,23 @@ from matplotlib.backends.backend_pdf import PdfPages
 # --- CONFIG PAGE ---
 st.set_page_config(page_title="Le WPMS de Nouzote V3", layout="wide")
 
-# --- TITRE ---
-st.markdown("<h1 style='text-align:center; color:#800020;'>💨 Le WPMS de Nouzote V3</h1>", unsafe_allow_html=True)
+# --- TITRE + LOGO (AJOUT UNIQUEMENT) ---
+col1, col2 = st.columns([1, 6])
+
+with col1:
+    st.image("logo.jpeg", width=500)
+
+with col2:
+    st.markdown(
+        "<h1 style='text-align:left; color:#800020;'>💨 WPMS NZ V3</h1>",
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        "<p style='text-align:left;'>"
+        "Sélectionner un ou plusieurs CSV (mode batch) dans I:\\400-Echange_OT\\03-Rapports\\WPMS"
+        "</p>",
+        unsafe_allow_html=True
+    )
 
 # --- MODE ---
 mode = st.radio("Mode", ["Single CSV", "Batch CSV"])
@@ -69,7 +84,6 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
         st.warning(f"Aucun cycle détecté pour {uploaded_file_name}")
         return None
 
-    # conversion pression
     for ch in ["CH1","CH2","CH3","CH4"]:
         df[ch] = (df[ch] - 1.08) * 23.148148
 
@@ -81,56 +95,58 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
 
     colors = {"CH1":"red","CH2":"blue","CH3":"green","CH4":"purple"}
     labels = {"CH1":"CH D1","CH2":"CH D2","CH3":"CH D3","CH4":"CH D4"}
+
     signals = {}
     for ch, dec in dec_ch.items():
         if show_signals[ch]:
             shift = (int((dec/360)*n) + dec_total) % n
             signals[ch] = np.roll(cycle[ch], shift)
 
-    # --- FIGURE ---
     fig, axs = plt.subplots(3,1, figsize=(12,8), gridspec_kw={'height_ratios':[1,1,0.8]})
 
-    # Haut: courbes brutes
     for ch, sig in signals.items():
         axs[0].plot(cycle["Angle"], sig, label=labels[ch], color=colors[ch])
+
     axs[0].legend()
     axs[0].set_xlim(-10,390)
     axs[0].set_ylabel("Pression (bars)")
     axs[0].grid(True)
 
-    # Milieu: compression / decompression
     mid = n//2
     angles_half = np.linspace(0,180,mid,endpoint=False)
+
     for ch, sig in signals.items():
         comp = sig[:mid]
         decomp = sig[-mid:][::-1]
         axs[1].plot(angles_half, comp, color=colors[ch])
         axs[1].plot(angles_half, decomp, "--", color=colors[ch])
+
     axs[1].set_xlim(-10,190)
     axs[1].set_xlabel("Angle")
     axs[1].set_ylabel("Pression (bars)")
     axs[1].grid(True)
 
-    # Bas: anciennes infos + stats par canal avec couleurs et lignes séparées
     ppd_name, dt_str = parse_filename_info(uploaded_file_name)
     rpm = 60000 / n
     txt_dec = " | ".join([f"{k}:{v}°" for k,v in dec_ch.items()])
 
     axs[2].axis("off")
-    # ligne principale infos
-    axs[2].text(0.5,0.8, f"PPD: {ppd_selected} | Durée {n} ms | {rpm:.1f} RPM | Global {dec_global}° | {txt_dec}",
-                ha="center", va="center", fontsize=10, family='monospace')
-    
-    # stats D1-D4, séparées verticalement et colorées
+
+    axs[2].text(
+        0.5,0.8,
+        f"PPD: {ppd_selected} | Durée {n} ms | {rpm:.1f} RPM | Global {dec_global}° | {txt_dec}",
+        ha="center", va="center", fontsize=10, family='monospace'
+    )
+
     ypos = 0.6
     for ch in ["CH1","CH2","CH3","CH4"]:
         sig = signals.get(ch)
         if sig is not None:
             stats_str = f"{labels[ch]} | Max:{sig.max():.1f} bars  Min:{sig.min():.1f} bars  Moy:{sig.mean():.1f} bars"
-            axs[2].text(0.5, ypos, stats_str, ha="center", va="center", fontsize=10, color=colors[ch], family='monospace')
-            ypos -= 0.2  # espacement pour ne pas chevaucher
+            axs[2].text(0.5, ypos, stats_str, ha="center", va="center",
+                        fontsize=10, color=colors[ch], family='monospace')
+            ypos -= 0.2
 
-    # Titre en haut
     fig.suptitle(f"Pompe: {ppd_name} | Heure: {dt_str}", fontsize=16, color="#800020")
 
     return fig
@@ -142,7 +158,11 @@ if mode == "Single CSV":
         df, filename = process_csv(uploaded_file)
         if df is not None:
             detected_ppd = next((ppd for ppd in ppd_options if uploaded_file.name.startswith(ppd)), None)
-            ppd_selected = st.sidebar.selectbox("Sélection PPD", ppd_options, index=ppd_options.index(detected_ppd) if detected_ppd else 0)
+            ppd_selected = st.sidebar.selectbox(
+                "Sélection PPD",
+                ppd_options,
+                index=ppd_options.index(detected_ppd) if detected_ppd else 0
+            )
             preset_vals = presets[ppd_selected]
             dec_global = st.sidebar.slider("Décalage global", 0, 360, preset_vals["dec_global"])
             dec_ch = {ch: st.sidebar.slider(ch, 0, 360, preset_vals[ch]) for ch in ["CH1","CH2","CH3","CH4"]}
@@ -156,15 +176,25 @@ if mode == "Single CSV":
 
 # --- BATCH CSV ---
 else:
-    uploaded_files = st.file_uploader("📂 Charger plusieurs CSV", type=["csv"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader(
+        "📂 Charger plusieurs CSV",
+        type=["csv"],
+        accept_multiple_files=True
+    )
+
     if uploaded_files:
         st.info("Traitement batch en cours...")
         figs = []
+
         for uploaded_file in uploaded_files:
             df, filename = process_csv(uploaded_file)
             if df is not None:
                 detected_ppd = next((ppd for ppd in ppd_options if uploaded_file.name.startswith(ppd)), None)
-                ppd_selected = st.sidebar.selectbox(f"PPD pour {filename}", ppd_options, index=ppd_options.index(detected_ppd) if detected_ppd else 0)
+                ppd_selected = st.sidebar.selectbox(
+                    f"PPD pour {filename}",
+                    ppd_options,
+                    index=ppd_options.index(detected_ppd) if detected_ppd else 0
+                )
                 preset_vals = presets[ppd_selected]
                 dec_global = st.sidebar.slider(f"Décalage global {filename}", 0, 360, preset_vals["dec_global"])
                 dec_ch = {ch: st.sidebar.slider(f"{ch} {filename}", 0, 360, preset_vals[ch]) for ch in ["CH1","CH2","CH3","CH4"]}
@@ -173,7 +203,7 @@ else:
                 fig = create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, filename)
                 if fig:
                     figs.append(fig)
-        # PDF batch
+
         if figs:
             pdf_bytes = io.BytesIO()
             with PdfPages(pdf_bytes) as pdf:
@@ -181,6 +211,11 @@ else:
                     pdf.savefig(fig)
                     plt.close(fig)
             pdf_bytes.seek(0)
-            st.download_button("Télécharger PDF batch", pdf_bytes, file_name="WPMS_batch.pdf")
+
+            st.download_button(
+                "Télécharger PDF batch",
+                pdf_bytes,
+                file_name="WPMS_batch.pdf"
+            )
     else:
         st.info("Chargez au moins un fichier CSV pour le mode batch")
