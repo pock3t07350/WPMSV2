@@ -11,10 +11,10 @@ from matplotlib.backends.backend_pdf import PdfPages
 st.set_page_config(page_title="Le WPMS de Nouzote V3", layout="wide")
 
 # --- TITRE + LOGO (AJOUT UNIQUEMENT) ---
-col1, col2 = st.columns([1, 6])
+col1, col2 = st.columns([2, 5])
 
 with col1:
-    st.image("logo.jpeg", width=5000)
+    st.image("logo.jpeg", width=800)
 
 with col2:
     st.markdown(
