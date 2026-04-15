@@ -7,11 +7,15 @@ import re
 from datetime import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 
-# --- CONFIG PAGE ---
+# =========================
+# CONFIG
+# =========================
 st.set_page_config(page_title="WPMS NZ V3", layout="wide")
 
-# --- TITLE ---
-st.markdown("<h1 style='text-align:center; color:#800020;'>💨 WPMS nz V3</h1>", unsafe_allow_html=True)
+st.markdown(
+    "<h1 style='text-align:center; color:#800020;'>💨 WPMS nz V3</h1>",
+    unsafe_allow_html=True
+)
 
 st.markdown(
     "<p style='text-align:center;'>"
@@ -20,10 +24,11 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- MODE ---
 mode = st.radio("Mode", ["Single CSV", "Batch CSV"])
 
-# --- PRESETS ---
+# =========================
+# PRESETS
+# =========================
 ppd_options = ["PPD101","PPD102","PPD201","PPD202","PPD301","PPD302"]
 
 presets = {
@@ -35,33 +40,68 @@ presets = {
     "PPD302": {"dec_global": 165, "CH1": 270, "CH2": 90, "CH3": 0, "CH4": 180},
 }
 
-# --- PPD DETECTION (IMPORTANT) ---
+# =========================
+# DETECTION PPD (ROBUSTE)
+# =========================
 def detect_ppd(filename):
-    match = re.search(r"PPD\d{3}", filename.upper())
+    if not filename:
+        return None
+    filename = filename.upper().replace(" ", "")
+    match = re.search(r"PPD\d{3}", filename)
     return match.group(0) if match else None
 
-# --- CSV PROCESS ---
-def process_csv(uploaded_file):
-    content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
-    lines = content.splitlines()
+# =========================
+# PARSE FILENAME INFO
+# =========================
+def parse_filename_info(filename):
+    ppd_match = re.search(r"(PPD\d{3})", filename)
+    ppd = ppd_match.group(1) if ppd_match else "PPD inconnue"
 
-    start_line = next((i for i, line in enumerate(lines) if line.startswith("Number,Date,Time")), None)
-    if start_line is None:
-        st.warning("Header introuvable")
+    date_match = re.search(r"_(\d{6})-(\d{6})", filename)
+    if date_match:
+        date_str, time_str = date_match.groups()
+        dt = datetime.strptime(date_str + time_str, "%y%m%d%H%M%S")
+        dt_str = dt.strftime("%d/%m/%y %H:%M:%S")
+    else:
+        dt_str = "Date inconnue"
+
+    return ppd, dt_str
+
+# =========================
+# CSV PROCESS
+# =========================
+def process_csv(uploaded_file):
+    try:
+        content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
+        lines = content.splitlines()
+
+        start_line = next(
+            (i for i, line in enumerate(lines) if line.startswith("Number,Date,Time")),
+            None
+        )
+
+        if start_line is None:
+            st.warning(f"Header introuvable dans {uploaded_file.name}")
+            return None, None
+
+        df = pd.read_csv(io.StringIO(content), skiprows=start_line)
+        df = df[["Number","Date","Time","us","CH1","CH2","CH3","CH4","CH5"]]
+        df = df[df["Number"] != "NO."]
+
+        for col in ["CH1","CH2","CH3","CH4","CH5"]:
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(" ", ""), errors="coerce")
+
+        df = df.dropna().reset_index(drop=True)
+
+        return df, uploaded_file.name
+
+    except Exception as e:
+        st.warning(f"Erreur fichier {uploaded_file.name} : {e}")
         return None, None
 
-    df = pd.read_csv(io.StringIO(content), skiprows=start_line)
-    df = df[["Number","Date","Time","us","CH1","CH2","CH3","CH4","CH5"]]
-    df = df[df["Number"] != "NO."]
-
-    for col in ["CH1","CH2","CH3","CH4","CH5"]:
-        df[col] = pd.to_numeric(df[col].astype(str).str.replace(" ", ""), errors="coerce")
-
-    df = df.dropna().reset_index(drop=True)
-
-    return df, uploaded_file.name
-
-# --- FIGURE (INCHANGÉE LOGIQUE) ---
+# =========================
+# FIGURE
+# =========================
 def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_file_name):
 
     df = df.copy()
@@ -71,7 +111,7 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     idx = df.index[fronts].tolist()
 
     if len(idx) < 2:
-        st.warning("Pas de cycle détecté")
+        st.warning(f"Aucun cycle détecté pour {uploaded_file_name}")
         return None
 
     for ch in ["CH1","CH2","CH3","CH4"]:
@@ -81,9 +121,9 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     cycle = df.iloc[start:end].reset_index(drop=True)
 
     n = len(cycle)
-    cycle["Angle"] = np.linspace(0,360,n,endpoint=False)
+    cycle["Angle"] = np.linspace(0, 360, n, endpoint=False)
 
-    dec_total = int((dec_global/360)*n) % n
+    dec_total = int((dec_global / 360) * n) % n
 
     colors = {"CH1":"red","CH2":"blue","CH3":"green","CH4":"purple"}
     labels = {"CH1":"CH D1","CH2":"CH D2","CH3":"CH D3","CH4":"CH D4"}
@@ -91,34 +131,36 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     signals = {}
     for ch, dec in dec_ch.items():
         if show_signals[ch]:
-            shift = (int((dec/360)*n) + dec_total) % n
+            shift = (int((dec / 360) * n) + dec_total) % n
             signals[ch] = np.roll(cycle[ch], shift)
 
-    fig, axs = plt.subplots(3,1,figsize=(12,8))
+    fig, axs = plt.subplots(3, 1, figsize=(12, 8))
 
+    # TOP
     for ch, sig in signals.items():
         axs[0].plot(cycle["Angle"], sig, label=labels[ch], color=colors[ch])
 
     axs[0].legend()
-    axs[0].grid()
+    axs[0].grid(True)
 
-    mid = n//2
-    ang = np.linspace(0,180,mid)
+    # MID
+    mid = n // 2
+    ang = np.linspace(0, 180, mid)
 
     for ch, sig in signals.items():
         axs[1].plot(ang, sig[:mid], color=colors[ch])
         axs[1].plot(ang, sig[-mid:][::-1], "--", color=colors[ch])
 
-    axs[1].grid()
+    axs[1].grid(True)
 
+    # BOT
     axs[2].axis("off")
-
-    axs[2].text(0.5,0.8,f"{ppd_selected} | {n} points | {dec_global}°",ha="center")
+    axs[2].text(0.5, 0.8, f"{ppd_selected} | {n} pts | {dec_global}°", ha="center")
 
     return fig
 
 # =========================
-# SINGLE MODE
+# SINGLE MODE (IDENTIQUE)
 # =========================
 if mode == "Single CSV":
 
@@ -131,14 +173,15 @@ if mode == "Single CSV":
         if df is not None:
 
             detected = detect_ppd(name)
-
             index = ppd_options.index(detected) if detected in ppd_options else 0
 
             ppd_selected = st.sidebar.selectbox("PPD", ppd_options, index=index)
 
-            dec_global = st.sidebar.slider("Global", 0, 360, presets[ppd_selected]["dec_global"])
+            preset = presets[ppd_selected]
 
-            dec_ch = {ch: st.sidebar.slider(ch, 0, 360, presets[ppd_selected][ch]) for ch in ["CH1","CH2","CH3","CH4"]}
+            dec_global = st.sidebar.slider("Global", 0, 360, preset["dec_global"])
+
+            dec_ch = {ch: st.sidebar.slider(ch, 0, 360, preset[ch]) for ch in ["CH1","CH2","CH3","CH4"]}
 
             show = {ch: st.sidebar.checkbox(ch, True) for ch in ["CH1","CH2","CH3","CH4"]}
 
@@ -148,7 +191,7 @@ if mode == "Single CSV":
                 st.pyplot(fig)
 
 # =========================
-# BATCH MODE (FIX IMPORTANT)
+# BATCH MODE (FIX DÉTECTION)
 # =========================
 else:
 
@@ -156,15 +199,7 @@ else:
 
     if files:
 
-        st.sidebar.header("Batch settings")
-
-        ppd_selected = st.sidebar.selectbox("PPD fallback", ppd_options)
-
-        dec_global = st.sidebar.slider("Global", 0, 360, presets[ppd_selected]["dec_global"])
-
-        dec_ch = {ch: st.sidebar.slider(ch, 0, 360, presets[ppd_selected][ch]) for ch in ["CH1","CH2","CH3","CH4"]}
-
-        show = {ch: st.sidebar.checkbox(ch, True) for ch in ["CH1","CH2","CH3","CH4"]}
+        st.info("Traitement batch...")
 
         figs = []
 
@@ -172,20 +207,27 @@ else:
 
             df, name = process_csv(f)
 
-            if df is not None:
+            if df is None:
+                continue
 
-                # 🔥 VERSION EXACTEMENT COMME TON BESOIN : DETECTION UTILISEE DIRECTEMENT
-                detected = detect_ppd(name)
+            # 🔥 DÉTECTION PAR FICHIER (CRUCIAL)
+            detected = detect_ppd(name)
 
-                if detected in ppd_options:
-                    ppd_used = detected
-                else:
-                    ppd_used = ppd_selected
+            if detected in ppd_options:
+                ppd_used = detected
+            else:
+                ppd_used = ppd_options[0]
 
-                fig = create_figure(df, ppd_used, dec_global, dec_ch, show, name)
+            preset = presets[ppd_used]
 
-                if fig:
-                    figs.append(fig)
+            dec_global = preset["dec_global"]
+            dec_ch = {ch: preset[ch] for ch in ["CH1","CH2","CH3","CH4"]}
+            show = {ch: True for ch in ["CH1","CH2","CH3","CH4"]}
+
+            fig = create_figure(df, ppd_used, dec_global, dec_ch, show, name)
+
+            if fig:
+                figs.append(fig)
 
         if figs:
 
@@ -198,4 +240,4 @@ else:
 
             pdf.seek(0)
 
-            st.download_button("PDF batch", pdf, file_name="WPMS.pdf")
+            st.download_button("Télécharger PDF batch", pdf, file_name="WPMS_batch.pdf")
