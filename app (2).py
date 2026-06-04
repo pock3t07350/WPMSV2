@@ -7,7 +7,7 @@ import re
 from datetime import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 
-# --- CONFIG PAGE --
+# --- CONFIG PAGE ---
 st.set_page_config(page_title="Le WPMS de Nouzote V3", layout="wide")
 
 # --- TITRE + LOGO ---
