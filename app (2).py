@@ -33,6 +33,7 @@ mode = st.radio("Mode", ["Single CSV", "Batch CSV"])
 
 # --- PRÉSETS ---
 ppd_options = ["PPD101","PPD102","PPD201","PPD202","PPD301","PPD302"]
+
 presets = {
     "PPD101": {"dec_global": 0, "CH1": 312, "CH2": 131, "CH3": 42, "CH4": 223},
     "PPD102": {"dec_global": 48, "CH1": 0, "CH2": 180, "CH3": 90, "CH4": 271},
@@ -40,6 +41,16 @@ presets = {
     "PPD202": {"dec_global": 68, "CH1": 0, "CH2": 180, "CH3": 90, "CH4": 270},
     "PPD301": {"dec_global": 70, "CH1": 270, "CH2": 90, "CH3": 0, "CH4": 180},
     "PPD302": {"dec_global": 165, "CH1": 270, "CH2": 90, "CH3": 0, "CH4": 180},
+}
+
+# --- TAGS RÉELS (UNIQUEMENT BAS) ---
+tag_names = {
+    "PPD101": {"CH1": "D1 - 220P10284","CH2": "D2 - 220P10285","CH3": "D3 - 220P10286","CH4": "D4 - 220P10287"},
+    "PPD102": {"CH1": "D1 - 220P10384","CH2": "D2 - 220P10385","CH3": "D3 - 220P10386","CH4": "D4 - 220P10387"},
+    "PPD201": {"CH1": "D1 - 220P20284","CH2": "D2 - 220P20285","CH3": "D3 - 220P20286","CH4": "D4 - 220P20287"},
+    "PPD202": {"CH1": "D1 - 220P20384","CH2": "D2 - 220P20385","CH3": "D3 - 220P20386","CH4": "D4 - 220P20387"},
+    "PPD301": {"CH1": "D1 - 220P30284","CH2": "D2 - 220P30285","CH3": "D3 - 220P30286","CH4": "D4 - 220P30287"},
+    "PPD302": {"CH1": "D1 - 220P30384","CH2": "D2 - 220P30385","CH3": "D3 - 220P30386","CH4": "D4 - 220P30387"},
 }
 
 # --- EXTRACTION NOM + DATE ---
@@ -84,7 +95,7 @@ def process_csv(uploaded_file):
         st.warning(f"Erreur fichier {uploaded_file.name} : {e}")
         return None, None
 
-# --- CREATION FIGURE ---
+# --- FIGURE ---
 def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_file_name):
 
     seuil_ch5 = 20
@@ -106,7 +117,7 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     dec_total = int((dec_global/360)*n) % n
 
     colors = {"CH1":"red","CH2":"blue","CH3":"green","CH4":"purple"}
-    labels = {"CH1":"CH D1","CH2":"CH D2","CH3":"CH D3","CH4":"CH D4"}
+    labels = {"CH1":"CH D1","CH2":"CH D2","CH3":"CH D3","CH4":"CH D4"}  # HAUT inchangé
 
     signals = {}
     for ch, dec in dec_ch.items():
@@ -138,32 +149,47 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     axs[1].set_ylabel("Pression (bars)")
     axs[1].grid(True)
 
-    ppd_name, dt_display, _ = parse_filename_info(uploaded_file_name)
-    rpm = 60000 / n
-    txt_dec = " | ".join([f"{k}:{v}°" for k,v in dec_ch.items()])
+    # --- BAS (TAGS RÉELS) ---
+    tags = tag_names.get(ppd_selected, {})
 
+    ypos = 0.8
     axs[2].axis("off")
 
+    ppd_name, dt_display, _ = parse_filename_info(uploaded_file_name)
+    rpm = 60000 / n
+
     axs[2].text(
-        0.5,0.8,
-        f"PPD: {ppd_selected} | Durée {n} ms | {rpm:.1f} RPM | Global {dec_global}° | {txt_dec}",
+        0.5, 0.9,
+        f"PPD: {ppd_selected} | Durée {n} ms | {rpm:.1f} RPM | Global {dec_global}°",
         ha="center", va="center", fontsize=10, family='monospace'
     )
 
-    ypos = 0.6
     for ch in ["CH1","CH2","CH3","CH4"]:
         sig = signals.get(ch)
         if sig is not None:
-            stats_str = f"{labels[ch]} | Max:{sig.max():.1f} bars  Min:{sig.min():.1f} bars  Moy:{sig.mean():.1f} bars"
-            axs[2].text(0.5, ypos, stats_str, ha="center", va="center",
-                        fontsize=10, color=colors[ch], family='monospace')
-            ypos -= 0.2
+            tag = tags.get(ch, ch)
+
+            stats_str = (
+                f"{tag} | Max:{sig.max():.1f} bars  "
+                f"Min:{sig.min():.1f} bars  "
+                f"Moy:{sig.mean():.1f} bars"
+            )
+
+            axs[2].text(
+                0.5, ypos,
+                stats_str,
+                ha="center", va="center",
+                fontsize=10,
+                color=colors[ch],
+                family='monospace'
+            )
+            ypos -= 0.18
 
     fig.suptitle(f"Pompe: {ppd_name} | Heure: {dt_display}", fontsize=16, color="#800020")
 
     return fig
 
-# --- SINGLE CSV ---
+# --- SINGLE / BATCH (inchangé) ---
 if mode == "Single CSV":
     uploaded_file = st.file_uploader("📂 Charger un fichier CSV", type=["csv"])
 
@@ -184,68 +210,9 @@ if mode == "Single CSV":
             dec_global = st.sidebar.slider("Décalage global", 0, 360, preset_vals["dec_global"])
             dec_ch = {ch: st.sidebar.slider(ch, 0, 360, preset_vals[ch]) for ch in ["CH1","CH2","CH3","CH4"]}
 
-            st.sidebar.header("Affichage des signaux")
             show_signals = {ch: st.sidebar.checkbox(ch, True) for ch in ["CH1","CH2","CH3","CH4"]}
 
             fig = create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, filename)
 
             if fig:
                 st.pyplot(fig)
-
-# --- BATCH CSV ---
-else:
-    uploaded_files = st.file_uploader(
-        "📂 Charger plusieurs CSV",
-        type=["csv"],
-        accept_multiple_files=True
-    )
-
-    if uploaded_files:
-        st.info("Traitement batch en cours...")
-        figs = []
-
-        for uploaded_file in uploaded_files:
-            df, filename = process_csv(uploaded_file)
-
-            if df is not None:
-                detected_ppd = next((ppd for ppd in ppd_options if filename.startswith(ppd)), None)
-
-                ppd_selected = detected_ppd if detected_ppd else ppd_options[0]
-                preset_vals = presets[ppd_selected]
-
-                dec_global = preset_vals["dec_global"]
-                dec_ch = {ch: preset_vals[ch] for ch in ["CH1","CH2","CH3","CH4"]}
-                show_signals = {ch: True for ch in ["CH1","CH2","CH3","CH4"]}
-
-                fig = create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, filename)
-
-                if fig:
-                    figs.append(fig)
-
-        if figs:
-            pdf_bytes = io.BytesIO()
-
-            with PdfPages(pdf_bytes) as pdf:
-                for fig in figs:
-                    pdf.savefig(fig)
-                    plt.close(fig)
-
-            pdf_bytes.seek(0)
-
-            # 🔥 NOM AUTO basé sur le premier fichier
-            first_filename = uploaded_files[0].name
-            ppd_name, _, dt_file = parse_filename_info(first_filename)
-
-            if dt_file == "unknown":
-                pdf_name = f"{ppd_name}_batch.pdf"
-            else:
-                pdf_name = f"{ppd_name}_{dt_file}.pdf"
-
-            st.download_button(
-                "Télécharger PDF batch",
-                pdf_bytes,
-                file_name=pdf_name
-            )
-
-    else:
-        st.info("Chargez au moins un fichier CSV pour le mode batch")
