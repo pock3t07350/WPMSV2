@@ -43,7 +43,7 @@ presets = {
     "PPD302": {"dec_global": 165, "CH1": 270, "CH2": 90, "CH3": 0, "CH4": 180},
 }
 
-# --- TAGS RÉELS (UNIQUEMENT BAS) ---
+# --- TAGS (UNIQUEMENT BAS) ---
 tag_names = {
     "PPD101": {"CH1": "D1 - 220P10284","CH2": "D2 - 220P10285","CH3": "D3 - 220P10286","CH4": "D4 - 220P10287"},
     "PPD102": {"CH1": "D1 - 220P10384","CH2": "D2 - 220P10385","CH3": "D3 - 220P10386","CH4": "D4 - 220P10387"},
@@ -70,7 +70,7 @@ def parse_filename_info(filename):
 
     return ppd, dt_display, dt_file
 
-# --- TRAITEMENT CSV ---
+# --- CSV ---
 def process_csv(uploaded_file):
     try:
         content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
@@ -86,7 +86,7 @@ def process_csv(uploaded_file):
         df = df[df["Number"] != "NO."]
 
         for col in ["CH1","CH2","CH3","CH4","CH5"]:
-            df[col] = pd.to_numeric(df[col].astype(str).str.replace(" ", "", regex=False), errors="coerce")
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(" ", ""), errors="coerce")
 
         df = df.dropna().reset_index(drop=True)
         return df, uploaded_file.name
@@ -127,6 +127,7 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
 
     fig, axs = plt.subplots(3,1, figsize=(12,8), gridspec_kw={'height_ratios':[1,1,0.8]})
 
+    # --- GRAPHE HAUT ---
     for ch, sig in signals.items():
         axs[0].plot(cycle["Angle"], sig, label=labels[ch], color=colors[ch])
 
@@ -135,6 +136,7 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     axs[0].set_ylabel("Pression (bars)")
     axs[0].grid(True)
 
+    # --- GRAPHE MILIEU ---
     mid = n//2
     angles_half = np.linspace(0,180,mid,endpoint=False)
 
@@ -149,10 +151,9 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
     axs[1].set_ylabel("Pression (bars)")
     axs[1].grid(True)
 
-    # --- BAS (TAGS RÉELS) ---
+    # --- BAS (TAGS UNIQUEMENT ICI) ---
     tags = tag_names.get(ppd_selected, {})
 
-    ypos = 0.8
     axs[2].axis("off")
 
     ppd_name, dt_display, _ = parse_filename_info(uploaded_file_name)
@@ -160,10 +161,11 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
 
     axs[2].text(
         0.5, 0.9,
-        f"PPD: {ppd_selected} | Durée {n} ms | {rpm:.1f} RPM | Global {dec_global}°",
+        f"PPD: {ppd_selected} | Durée {n} ms | {rpm:.1f} RPM",
         ha="center", va="center", fontsize=10, family='monospace'
     )
 
+    ypos = 0.7
     for ch in ["CH1","CH2","CH3","CH4"]:
         sig = signals.get(ch)
         if sig is not None:
@@ -178,7 +180,8 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
             axs[2].text(
                 0.5, ypos,
                 stats_str,
-                ha="center", va="center",
+                ha="center",
+                va="center",
                 fontsize=10,
                 color=colors[ch],
                 family='monospace'
@@ -189,7 +192,7 @@ def create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, uploaded_f
 
     return fig
 
-# --- SINGLE / BATCH (inchangé) ---
+# --- SINGLE ---
 if mode == "Single CSV":
     uploaded_file = st.file_uploader("📂 Charger un fichier CSV", type=["csv"])
 
@@ -209,10 +212,60 @@ if mode == "Single CSV":
 
             dec_global = st.sidebar.slider("Décalage global", 0, 360, preset_vals["dec_global"])
             dec_ch = {ch: st.sidebar.slider(ch, 0, 360, preset_vals[ch]) for ch in ["CH1","CH2","CH3","CH4"]}
-
             show_signals = {ch: st.sidebar.checkbox(ch, True) for ch in ["CH1","CH2","CH3","CH4"]}
 
             fig = create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, filename)
 
             if fig:
                 st.pyplot(fig)
+
+# --- BATCH ---
+else:
+    uploaded_files = st.file_uploader(
+        "📂 Charger plusieurs CSV",
+        type=["csv"],
+        accept_multiple_files=True
+    )
+
+    if uploaded_files:
+        st.info("Traitement batch en cours...")
+        figs = []
+
+        for uploaded_file in uploaded_files:
+            df, filename = process_csv(uploaded_file)
+
+            if df is not None:
+                detected_ppd = next((ppd for ppd in ppd_options if filename.startswith(ppd)), None)
+
+                ppd_selected = detected_ppd if detected_ppd else ppd_options[0]
+                preset_vals = presets[ppd_selected]
+
+                dec_global = preset_vals["dec_global"]
+                dec_ch = {ch: preset_vals[ch] for ch in ["CH1","CH2","CH3","CH4"]}
+                show_signals = {ch: True for ch in ["CH1","CH2","CH3","CH4"]}
+
+                fig = create_figure(df, ppd_selected, dec_global, dec_ch, show_signals, filename)
+
+                if fig:
+                    figs.append(fig)
+
+        if figs:
+            pdf_bytes = io.BytesIO()
+
+            with PdfPages(pdf_bytes) as pdf:
+                for fig in figs:
+                    pdf.savefig(fig)
+                    plt.close(fig)
+
+            pdf_bytes.seek(0)
+
+            first_filename = uploaded_files[0].name
+            ppd_name, _, dt_file = parse_filename_info(first_filename)
+
+            pdf_name = f"{ppd_name}_{dt_file}.pdf" if dt_file != "unknown" else f"{ppd_name}_batch.pdf"
+
+            st.download_button(
+                "Télécharger PDF batch",
+                pdf_bytes,
+                file_name=pdf_name
+            )
