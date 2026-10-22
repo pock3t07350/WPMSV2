@@ -35,8 +35,8 @@ mode = st.radio("Mode", ["Single CSV", "Batch CSV"])
 ppd_options = ["PPD101","PPD102","PPD201","PPD202","PPD301","PPD302"]
 
 presets = {
-    "PPD101": {"dec_global": 0, "CH1": 312, "CH2": 131, "CH3": 42, "CH4": 223},
-    "PPD102": {"dec_global": 48, "CH1": 0, "CH2": 180, "CH3": 90, "CH4": 271},
+    "PPD101": {"dec_global": 45, "CH1": 270, "CH2": 90, "CH3": 0, "CH4": 180},
+    "PPD102": {"dec_global": 48, "CH1": 0, "CH2": 180, "CH3": 90, "CH4": 270},
     "PPD201": {"dec_global": 345, "CH1": 0, "CH2": 180, "CH3": 90, "CH4": 270},
     "PPD202": {"dec_global": 68, "CH1": 0, "CH2": 180, "CH3": 90, "CH4": 270},
     "PPD301": {"dec_global": 70, "CH1": 270, "CH2": 90, "CH3": 0, "CH4": 180},
